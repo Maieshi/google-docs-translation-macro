@@ -13,60 +13,86 @@ function translateAndSaveWithFormatting() {
     var originalBody = originalDoc.getBody();
     var translatedBody = translatedDoc.getBody();
     translatedBody.clear();
-
+    
     for (var i = 0; i < originalBody.getNumChildren(); i++) {
         var element = originalBody.getChild(i);
         var elementType = element.getType();
-
-
+Utilities.sleep(1000);
         switch (elementType) {
-            case DocumentApp.ElementType.PARAGRAPH:
-            case DocumentApp.ElementType.HEADING:
-            case DocumentApp.ElementType.LIST_ITEM:
-                translateTextElementWithFormatting(element, translatedBody);
-                break;
-            case DocumentApp.ElementType.TABLE:
-                translateTableWithFormatting(element.asTable(), translatedBody);
-                break;
-            case DocumentApp.ElementType.INLINE_IMAGE:
-                copyImage(element.asInlineImage(), translatedBody);
-                break;
-            case DocumentApp.ElementType.TABLE_OF_CONTENTS:
-            case DocumentApp.ElementType.UNSUPPORTED:
-                continue; 
-            default:
-                Logger.log("Skipped unknown element: " + elementType);
-        }
+    case DocumentApp.ElementType.PARAGRAPH:
+       var newParagraph = translatedBody.appendParagraph("");  
+                copyParagraphFormat(element, translatedBody);  
+
+                
+                for (var j = 0; j < element.getNumChildren(); j++) {
+                    var child = element.getChild(j);
+                    if (child.getType() === DocumentApp.ElementType.INLINE_IMAGE) {
+                        Logger.log(" Found inline image inside paragraph!");
+                        copyImage(child.asInlineImage(), newParagraph);  
+                    }
+                }
+        break;  
+
+    case DocumentApp.ElementType.HEADING:
+    case DocumentApp.ElementType.LIST_ITEM:
+        translateTextElementWithFormatting(element, translatedBody);
+        break;
+
+    case DocumentApp.ElementType.TABLE:
+        translateTableWithFormatting(element.asTable(), translatedBody);
+        break;
+
+    case DocumentApp.ElementType.INLINE_IMAGE:
+        Logger.log("Found an inline image!");
+        copyImage(element.asInlineImage(), translatedBody);
+        break;
+
+    default:
+        Logger.log("Skipped unknown element: " + elementType);
+}
     }
     Logger.log("Translation completed successfully.");
 }
-
-//TODOD: save text formatting in translated copy
-
+//TODO:make text and heaaders fromatted
 function translateTextElementWithFormatting(element, translatedBody) {
-    if (!element.editAsText) return;
+    if (!element.editAsText && !element.asParagraph) return;
 
-    var text = element.editAsText();
-    var originalText = text.getText().trim();
-    if (!originalText) return;
+    var newElement = translatedBody.appendParagraph(""); 
 
-    try {
-        var translatedText = LanguageApp.translate(originalText, "en", "ru");
-        if (!translatedText) return;
+    
+    if (element.editAsText) {
+        var text = element.editAsText();
+        var originalText = text.getText().trim();
+        if (!originalText) return;
 
-        var newElement = translatedBody.appendParagraph("");
-        newElement.setHeading(element.getHeading());
+        try {
+            var translatedText = LanguageApp.translate(originalText, "en", "ru");
+            if (!translatedText) return;
 
-        var originalParts = text.getText().split(/(\s+)/); 
-        var translatedParts = translatedText.split(/(\s+)/);
-        
-        for (var i = 0; i < originalParts.length && i < translatedParts.length; i++) {
-            var newPart = newElement.appendText(translatedParts[i]);
-            newPart.setAttributes(text.getAttributes(i));
+            newElement.setHeading(element.getHeading());
+
+            var originalParts = text.getText().split(/(\s+)/);
+            var translatedParts = translatedText.split(/(\s+)/);
+            
+            for (var i = 0; i < originalParts.length && i < translatedParts.length; i++) {
+                var newPart = newElement.appendText(translatedParts[i]);
+                newPart.setAttributes(text.getAttributes(i));
+            }
+        } catch (e) {
+            Logger.log("Error translating text: " + e.message);
         }
-    } catch (e) {
-        Logger.log("Error translating text: " + e.message);
     }
+}
+
+function copyParagraphFormat(element,translatedBody)
+{
+   var attributes = element.getAttributes();      
+
+  var spn = LanguageApp.translate(element.getText(), 'en', 'es');
+  var newParagraph = translatedBody.appendParagraph(spn);
+
+  
+  newParagraph.setAttributes(attributes)
 }
 
 function translateTableWithFormatting(table, translatedBody) {
@@ -92,18 +118,23 @@ function translateTableWithFormatting(table, translatedBody) {
     }
 }
 
-
-//TDOD:remake a image compying 
-function copyImage(image, translatedBody) {
-    if (!image) return;
+//TODO: make images formmatted
+function copyImage(image, target) {
+    if (!image) {
+        Logger.log("No image found to copy.");
+        return;
+    }
 
     try {
         var blob = image.getBlob();
         if (blob) {
-            translatedBody.appendImage(blob);
-            Logger.log("Image copied successfully.");
+            
+            target.appendInlineImage(blob);
+            Logger.log(" Image copied successfully.");
+        } else {
+            Logger.log(" Image blob is null.");
         }
     } catch (e) {
-        Logger.log("Error copying image: " + e.message);
+        Logger.log(" Error copying image: " + e.message);
     }
 }
